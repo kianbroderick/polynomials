@@ -6,96 +6,159 @@ import Data.Ord (comparing)
 main :: IO ()
 main = putStrLn "Hello, Haskell!"
 
-newtype Polynomial = Polynomial [Integer]
-
-instance Show Polynomial where
-  show (Polynomial xs) = drop 3 $ go xs (length xs - 1)
-    where
-      go [] _ = ""
-      go (c : cs) n
-        | n == 0 = " + " ++ show c ++ go cs (n - 1)
-        | n == 1 = " + " ++ show c ++ "x"
-        | c == 0 = go cs (n - 1)
-        | c == 1 = " + " ++ "x" ++ "^" ++ show n ++ go cs (n - 1)
-        | c > 0 = " + " ++ show c ++ "x" ++ "^" ++ show n ++ go cs (n - 1)
-        | c < 0 = " - " ++ show (abs c) ++ "x" ++ "^" ++ show n ++ go cs (n - 1)
-
-eval :: Polynomial -> Double -> Double
-eval (Polynomial []) _ = 0
-eval (Polynomial (c : cs)) x = fromIntegral c * x + eval (Polynomial cs) x
-
-addP :: Polynomial -> Polynomial -> Polynomial
-addP (Polynomial xs) (Polynomial ys) = Polynomial $ reverse $ takeWhile (/= 0) $ zipWith (+) xs' ys'
-  where
-    xs' = reverse xs ++ repeat 0
-    ys' = reverse ys ++ repeat 0
-
+-- make this polymorphic over possible fields
 type Coefficient = Integer
 
 type Power = Integer
 
 data Term = Term Coefficient Power
-
-newPoly :: [Integer] -> [Term]
-newPoly xs = toTerm (Polynomial xs)
+  deriving (Eq)
 
 instance Show Term where
   show (Term 0 _) = show 0
   show (Term c 0) = show c
+  show (Term 1 1) = "x"
+  show (Term 1 p) = "x" ++ "^" ++ show p
   show (Term c 1) = show c ++ "x"
   show (Term c p) = show c ++ "x" ++ "^" ++ show p
 
-toTerm :: Polynomial -> [Term]
-toTerm (Polynomial []) = []
-toTerm ps = reverse $ go ps 0
-  where
-    go :: Polynomial -> Integer -> [Term]
-    go (Polynomial []) _ = []
-    go (Polynomial (p : ps)) n
-      | p == 0 = go (Polynomial ps) (n + 1)
-      | otherwise = Term p n : go (Polynomial ps) (n + 1)
+-- make this polymorphic over the field where the coefficients come from
+type Polynomial = [Term]
 
-sortTerms :: [Term] -> [Term]
+pprint :: Polynomial -> String
+pprint ts = dropPlus $ go ts
+  where
+    dropPlus = dropWhile (\c -> c == ' ' || c == '+')
+    go [] = []
+    go (t : ts) = pprint' t ++ go ts
+      where
+        pprint' :: Term -> String
+        pprint' (Term 0 _) = []
+        pprint' (Term 1 1) = " + " ++ "x"
+        pprint' (Term 1 pow)
+          | pow == 0 = " + " ++ show 1
+          | otherwise = " + " ++ "x^" ++ show pow
+        pprint' (Term coef 1)
+          | coef == 0 = []
+          | coef < 0 = " - " ++ show (abs coef) ++ "x"
+          | otherwise = " + " ++ show coef ++ "x"
+        pprint' (Term coef 0)
+          | coef < 0 = " - " ++ show (abs coef)
+          | coef == 0 = []
+          | otherwise = " + " ++ show coef
+        pprint' (Term coef pow)
+          | coef < 0 = " - " ++ show (abs coef) ++ "x^" ++ show pow
+          | coef == 0 = []
+          | otherwise = " + " ++ show coef ++ "x^" ++ show pow
+
+newPoly :: [Integer] -> Polynomial
+newPoly ps = reverse $ go (reverse ps) 0
+  where
+    go :: [Integer] -> Integer -> [Term]
+    go [] _ = []
+    go (t : ts) n
+      | t == 0 = go ts (n + 1)
+      | otherwise = Term t n : go ts (n + 1)
+
+sortTerms :: Polynomial -> Polynomial
 sortTerms = sortBy (flip (comparing getP))
-  where
-    getP (Term _ p) = p
 
-toPoly :: [Term] -> Polynomial
-toPoly [] = Polynomial []
-toPoly (t : ts) = let (p : ps) = sortTerms $ combineT (t : ts) in Polynomial $ go ps (getP p)
+getC :: Term -> Coefficient
+getC (Term c _) = c
+
+getP :: Term -> Power
+getP (Term _ p) = p
+
+degree :: Polynomial -> Integer
+degree [] = 0
+degree ts = let ts' = combine ts in maximum (fmap getP ts')
+
+getCoefficients :: Polynomial -> [Integer]
+getCoefficients [] = []
+getCoefficients (t : ts) = go ps maxpower
   where
-    getP (Term _ p) = p
-    getC (Term c _) = c
+    ps = sortTerms $ combine (t : ts)
+    maxpower = maximum $ getP <$> ps
     go :: [Term] -> Integer -> [Integer]
     go [] _ = []
     go (x : xs) n
-      | getP x == n = [getC x] ++ go xs (n - 1)
-      | otherwise = go xs (n - 1)
+      | getP x == n = getC x : go xs (n - 1)
+      | otherwise = 0 : go (x : xs) (n - 1)
 
-evalT :: Term -> Integer -> Integer
-evalT (Term c p) x = c * (x ^ p)
+eval :: (Num a) => Term -> a -> a
+eval (Term c p) x = fromInteger c * (x ^ p)
 
-multT :: Term -> Term -> Term
-multT (Term c1 p1) (Term c2 p2) = Term (c1 * c2) (p1 + p2)
+evalP :: (Num a) => Polynomial -> a -> a
+evalP [] _ = 0
+evalP (t : ts) x = eval t x + evalP ts x
 
-combineT :: [Term] -> [Term]
-combineT [] = []
-combineT (t : ts) =
+mult :: Term -> Term -> Term
+mult (Term c1 p1) (Term c2 p2) = Term (c1 * c2) (p1 + p2)
+
+combine :: Polynomial -> Polynomial
+combine [] = []
+combine (t : ts) =
   let (same, rest) = partition (\x -> getP x == getP t) ts
       coeffSum = sum (map getC (t : same))
    in if coeffSum == 0
-        then combineT rest
-        else Term coeffSum (getP t) : combineT rest
+        then combine rest
+        else Term coeffSum (getP t) : combine rest
+
+distribute :: Term -> Polynomial -> Polynomial
+distribute t1 ts = combine $ fmap (mult t1) ts
+
+addP :: Polynomial -> Polynomial -> Polynomial
+addP t1s t2s = combine $ t1s ++ t2s
+
+multP :: Polynomial -> Polynomial -> Polynomial
+multP t1s t2s = combine [mult t1 t2 | t1 <- t1s, t2 <- t2s]
+
+rationalRoots :: Polynomial -> [(Integer, Integer)]
+rationalRoots [] = []
+rationalRoots ts =
+  [ (p, q)
+    | p <- factor $ abs $ getC (last ts),
+      q <- factor $ abs $ getC (head ts)
+  ]
   where
-    getP (Term _ p) = p
-    getC (Term c _) = c
+    factor n = [k | k <- [1 .. n], n `mod` k == 0]
 
-distribute :: Term -> [Term] -> [Term]
-distribute t1 ts = combineT $ fmap (multT t1) ts
+rationalRootsEval :: Polynomial -> [Double]
+rationalRootsEval poly =
+  let testNums = fmap toDecimal (rationalRoots poly)
+   in filter (\x -> evalP poly x == 0.0) testNums
+  where
+    toDecimal :: (Integer, Integer) -> Double
+    toDecimal (n, d) = fromInteger n / fromInteger d
 
-multTP :: [Term] -> [Term] -> [Term]
-multTP t1s t2s = combineT [multT t1 t2 | t1 <- t1s, t2 <- t2s]
+diff :: Term -> Term
+diff (Term _ 0) = Term 0 0
+diff (Term coef pow) = Term (coef * pow) (pow - 1)
 
-p1 = newPoly [1, 2, 3]
+diffP :: Polynomial -> Polynomial
+diffP = fmap diff
 
-p2 = newPoly [4, 5, 6]
+newtonsMethod :: Polynomial -> Double -> Integer -> Double
+newtonsMethod f x0 iter = go x0 1
+  where
+    df = diffP f
+    newton x = x - (evalP f x / evalP df x)
+    go x n
+      | n > iter = x
+      | otherwise = go (newton x) (n + 1)
+
+bisection :: Polynomial -> Double -> Double -> Integer -> Maybe Double
+bisection p min max iter = go p min max 1
+  where
+    go p min max n
+      | n > iter = Just m
+      | f min * f max > 0 = Nothing
+      | f min * f m < 0 = go p min m (n + 1)
+      | otherwise = go p m max (n + 1)
+      where
+        f = evalP p
+        m = (min + max) / 2
+
+p = newPoly [1, 0, 1]
+
+p2 = newPoly [1, 0, 0]
