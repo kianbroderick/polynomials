@@ -1,28 +1,31 @@
 module Main where
 
+import Data.Bifunctor (first)
 import Data.List (partition, sortBy)
 import Data.Ord (comparing)
 
 main :: IO ()
 main = putStrLn "Hello, Haskell!"
 
--- make this polymorphic over possible fields
+-- TODO add multivariable polynomials
+
+-- TODO make this polymorphic over possible fields
 type Coefficient = Integer
 
 type Power = Integer
 
 data Term = Term Coefficient Power
-  deriving (Eq)
+  deriving (Eq, Show)
 
-instance Show Term where
-  show (Term 0 _) = show 0
-  show (Term c 0) = show c
-  show (Term 1 1) = "x"
-  show (Term 1 p) = "x" ++ "^" ++ show p
-  show (Term c 1) = show c ++ "x"
-  show (Term c p) = show c ++ "x" ++ "^" ++ show p
+-- instance Show Term where
+--   show (Term 0 _) = show 0
+--   show (Term c 0) = show c
+--   show (Term 1 1) = "x"
+--   show (Term 1 p) = "x" ++ "^" ++ show p
+--   show (Term c 1) = show c ++ "x"
+--   show (Term c p) = show c ++ "x" ++ "^" ++ show p
 
--- make this polymorphic over the field where the coefficients come from
+-- TODO make this polymorphic over the field where the coefficients come from
 type Polynomial = [Term]
 
 pprint :: Polynomial -> String
@@ -123,11 +126,11 @@ rationalRoots ts =
   where
     factor n = [k | k <- [1 .. n], n `mod` k == 0]
 
-rationalRootsEval :: Polynomial -> [Double]
+rationalRootsEval :: Polynomial -> [(Integer, Integer)]
 rationalRootsEval poly =
-  let testNums = fmap toDecimal (rationalRoots poly)
-   in filter (\x -> evalP poly x == 0.0) testNums
+  filter (\x -> abs (evalP poly (toDecimal x)) < 0.000001) $ roots ++ fmap (first negate) roots
   where
+    roots = rationalRoots poly
     toDecimal :: (Integer, Integer) -> Double
     toDecimal (n, d) = fromInteger n / fromInteger d
 
@@ -138,8 +141,18 @@ diff (Term coef pow) = Term (coef * pow) (pow - 1)
 diffP :: Polynomial -> Polynomial
 diffP = fmap diff
 
-newtonsMethod :: Polynomial -> Double -> Integer -> Double
-newtonsMethod f x0 iter = go x0 1
+d :: Int -> Polynomial -> Polynomial
+d n f = iterate diffP f !! n
+
+diffPN :: Polynomial -> [Polynomial]
+diffPN poly = take (fromInteger (degree poly) + 1) $ iterate diffP poly
+
+-- TODO can't do this yet since the coefficients are restricted to integers
+integrate :: Term -> Term
+integrate (Term c p) = undefined
+
+newtonRahpson :: Polynomial -> Double -> Integer -> Double
+newtonRahpson f x0 iter = go x0 1
   where
     df = diffP f
     newton x = x - (evalP f x / evalP df x)
@@ -159,6 +172,8 @@ bisection p min max iter = go p min max 1
         f = evalP p
         m = (min + max) / 2
 
-p = newPoly [1, 0, 1]
+f = newPoly [1, 2]
 
-p2 = newPoly [1, 0, 0]
+g = newPoly [3, 4]
+
+h = multP f g
