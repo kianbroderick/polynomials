@@ -3,6 +3,8 @@ module Main where
 import Data.Bifunctor (first)
 import Data.List (partition, sortBy)
 import Data.Ord (comparing)
+import Multivariable
+import Numeric.Natural (Natural)
 
 main :: IO ()
 main = putStrLn "Hello, Haskell!"
@@ -12,7 +14,7 @@ main = putStrLn "Hello, Haskell!"
 -- TODO make this polymorphic over possible fields
 type Coefficient = Integer
 
-type Power = Integer
+type Power = Natural
 
 data Term = Term Coefficient Power
   deriving (Eq, Show)
@@ -57,7 +59,7 @@ pprint ts = dropPlus $ go ts
 newPoly :: [Integer] -> Polynomial
 newPoly ps = reverse $ go (reverse ps) 0
   where
-    go :: [Integer] -> Integer -> [Term]
+    go :: [Integer] -> Natural -> [Term]
     go [] _ = []
     go (t : ts) n
       | t == 0 = go ts (n + 1)
@@ -72,7 +74,7 @@ getC (Term c _) = c
 getP :: Term -> Power
 getP (Term _ p) = p
 
-degree :: Polynomial -> Integer
+degree :: Polynomial -> Natural
 degree [] = 0
 degree ts = let ts' = combine ts in maximum (fmap getP ts')
 
@@ -82,7 +84,7 @@ getCoefficients (t : ts) = go ps maxpower
   where
     ps = sortTerms $ combine (t : ts)
     maxpower = maximum $ getP <$> ps
-    go :: [Term] -> Integer -> [Integer]
+    go :: [Term] -> Natural -> [Integer]
     go [] _ = []
     go (x : xs) n
       | getP x == n = getC x : go xs (n - 1)
@@ -136,7 +138,7 @@ rationalRootsEval poly =
 
 diff :: Term -> Term
 diff (Term _ 0) = Term 0 0
-diff (Term coef pow) = Term (coef * pow) (pow - 1)
+diff (Term coef pow) = Term (coef * toInteger pow) (pow - 1)
 
 diffP :: Polynomial -> Polynomial
 diffP = fmap diff
@@ -145,7 +147,7 @@ d :: Int -> Polynomial -> Polynomial
 d n f = iterate diffP f !! n
 
 diffPN :: Polynomial -> [Polynomial]
-diffPN poly = take (fromInteger (degree poly) + 1) $ iterate diffP poly
+diffPN poly = take ((fromInteger . toInteger) (degree poly) + 1) $ iterate diffP poly
 
 -- TODO can't do this yet since the coefficients are restricted to integers
 integrate :: Term -> Term
