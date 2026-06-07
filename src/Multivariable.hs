@@ -1,11 +1,20 @@
 module Multivariable where
 
-import Data.List (partition)
-import Data.Maybe (catMaybes)
+import Data.List (intercalate, partition)
 import Numeric.Natural (Natural)
 
 -- desired powers, length is number of variables
 type Monomial = [Natural]
+
+pprintM :: Monomial -> String
+pprintM ms = go ms 1
+  where
+    go :: [Natural] -> Integer -> String
+    go [] _ = []
+    go (x : xs) n = ("(x" ++ show n ++ ")^" ++ show x) ++ go xs (n + 1)
+
+mo :: [Natural]
+mo = [1, 2, 3]
 
 totalDegree :: Monomial -> Natural
 totalDegree = sum
@@ -18,6 +27,12 @@ evalM m vals
 
 -- first arg is coefficients, second is list of powers for that term
 type MultiPoly = [(Integer, Monomial)]
+
+pprintP :: MultiPoly -> String
+pprintP mp = intercalate " + " $ map display mp
+  where
+    display :: (Integer, Monomial) -> String
+    display (coeff, m) = show coeff ++ pprintM m
 
 newMultiPoly :: [Integer] -> [Monomial] -> Maybe MultiPoly
 newMultiPoly coeffs ms
