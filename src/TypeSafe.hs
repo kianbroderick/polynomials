@@ -36,7 +36,7 @@ instance (Show k) => Show (Term k n) where
 -- polynomial in n variables with coefficients in a field k
 data Polynomial k n = Polynomial [Term k n] deriving (Eq, Show)
 
-class (SNatI (NumVars a)) =>Variables a k | a -> k where
+class (SNatI (NumVars a)) => Variables a k | a -> k where
   type NumVars a :: Nat
   pprint :: a -> String
   degree :: a -> Nat
@@ -117,7 +117,7 @@ instance Poly (Polynomial k n) k where
         then combine (Polynomial rest)
         else let (Polynomial r) = combine (Polynomial rest) in Polynomial ((Term coeffSum m) : r)
   -- GHC really does not like this definition here
-  -- normalOrder (Polynomial ts) = Polynomial $ map (\ t@(Term p q) -> if degree q == degree q then t else t) ts
+  normalOrder (Polynomial ts) = Polynomial $ map (\ t@(Term p q) -> if degree q == degree q then t else t) ts
   
 newTerm ::(Num k, Eq k, Show k) => k -> Vec n Nat -> Term k n
 newTerm k p = Term k (Monomial p)
