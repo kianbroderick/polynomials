@@ -1,4 +1,4 @@
-module Multivariable where
+module MultiVariable where
 
 import Data.List (partition, intercalate)
 import Numeric.Natural (Natural)

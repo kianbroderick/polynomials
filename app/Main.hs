@@ -1,6 +1,6 @@
 module Main where
 
-import Multivariable
+import MultiVariable
 import TypeSafe
 import Data.Vec.Lazy (Vec(..))
 
