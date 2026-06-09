@@ -1,6 +1,6 @@
 module Multivariable where
 
-import Data.List (intercalate, partition)
+import Data.List (partition, intercalate)
 import Numeric.Natural (Natural)
 
 -- desired powers, length is number of variables
